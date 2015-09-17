@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "q_shared.h"
 #include "qcommon.h"
+#include "net_rina.h"
 
 /*
 
@@ -70,6 +71,7 @@ Netchan_Init
 ===============
 */
 void Netchan_Init( int port ) {
+        //init_rina();
 	port &= 0xffff;
 	showpackets = Cvar_Get ("showpackets", "0", CVAR_TEMP );
 	showdrop = Cvar_Get ("showdrop", "0", CVAR_TEMP );
@@ -637,6 +639,11 @@ int NET_StringToAdr( const char *s, netadr_t *a, netadrtype_t family )
 // as NA_LOOPBACK doesn't require ports report port was given.
 		return 1;
 	}
+        if(family == NA_RINA)
+        {
+            rina_resolve(s, a);
+            return 1;
+        }
 
 	Q_strncpyz( base, s, sizeof( base ) );
 	

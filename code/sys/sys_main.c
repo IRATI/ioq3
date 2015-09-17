@@ -46,6 +46,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../qcommon/q_shared.h"
 #include "../qcommon/qcommon.h"
+#include "../qcommon/net_rina.h"
 
 static char binaryPath[ MAX_OSPATH ] = { 0 };
 static char installPath[ MAX_OSPATH ] = { 0 };
@@ -671,7 +672,12 @@ int main( int argc, char **argv )
 
 	Com_Init( commandLine );
 	NET_Init( );
-
+        
+#ifdef DEDICATED
+        rina_init(1);
+#else
+        rina_init(0);
+#endif
 	CON_Init( );
 
 	signal( SIGILL, Sys_SigHandler );

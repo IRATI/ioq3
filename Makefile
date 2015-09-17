@@ -1565,6 +1565,7 @@ Q3OBJ = \
   $(B)/client/msg.o \
   $(B)/client/net_chan.o \
   $(B)/client/net_ip.o \
+  $(B)/client/net_rina.o \
   $(B)/client/huffman.o \
   \
   $(B)/client/snd_adpcm.o \
@@ -2169,6 +2170,7 @@ Q3DOBJ = \
   $(B)/ded/msg.o \
   $(B)/ded/net_chan.o \
   $(B)/ded/net_ip.o \
+  $(B)/ded/net_rina.o \
   $(B)/ded/huffman.o \
   \
   $(B)/ded/q_math.o \
@@ -2903,3 +2905,12 @@ endif
 ifneq ($(findstring clean, $(MAKECMDGOALS)),)
 .NOTPARALLEL:
 endif
+
+#RINA support
+CFLAGS+="-I/usr/local/irati/include"
+CFLAGS+="-lpthread"
+LIBS+="-lstdc++"
+LDFLAGS+="-L/usr/local/irati/lib"
+LIBS+="-lrina"
+LIBS+="-lrina-c"
+
