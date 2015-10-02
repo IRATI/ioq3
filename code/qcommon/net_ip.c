@@ -1716,7 +1716,6 @@ Sleeps msec or until something happens on the network
 */
 void NET_Sleep(int msec)
 {
-#ifndef RINA_USE_POLLING
 	struct timeval timeout;
 	fd_set fdr;
 	int retval;
@@ -1759,44 +1758,7 @@ void NET_Sleep(int msec)
 	timeout.tv_usec = (msec%1000)*1000;
 
 	retval = select(highestfd + 1, &fdr, NULL, NULL, &timeout);
-#else
-        /* RINA */
-	unsigned long long now;
-        unsigned long long deadline;
-	int                retval;
-	fd_set             fdr;
 
-	if(msec < 0)
-		msec = 0;
-	FD_ZERO(&fdr);
-
-	now = time_ms();
-	deadline = now + msec;
-	while(retval == 0 && now < deadline) {
-                if(ip_socket != INVALID_SOCKET ) {
-                        ioctl(ip_socket, FIONREAD, &retval);
-                        if(retval > 0)
-                                FD_SET(ip_socket, &fdr);
-                        else
-                                retval = 0;
-                }
-                if(retval == 0 && ip6_socket != INVALID_SOCKET) {
-		ioctl(ip6_socket, FIONREAD, &retval);
-		if(retval > 0)
-                        FD_SET(ip6_socket, &fdr);
-		else
-                        retval = 0;
-                }
-                /* RINA */
-                if(retval == 0 && rina_event != INVALID_SOCKET) {
-                        if(rina_read_event()) {
-                                retval = 1;
-                                FD_SET(rina_event, &fdr);
-                        }
-                }
-                now = time_ms();
-        }
-#endif
 	if(retval == SOCKET_ERROR)
 		Com_Printf("Warning: select() syscall failed: %s\n", NET_ErrorString());
 	else if(retval > 0) {

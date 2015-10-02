@@ -48,17 +48,19 @@ const char *dif_name             = 0;
 const unsigned long long one = 1;
 unsigned long long maybeone  = 1;
 
-#define max_buffer_size (16*1024)
-#define queue_size 64
+#define MAX_BUFFER_SIZE (16*1024)
+#define QUEUE_SIZE 512
+
 struct {
-        char buf[max_buffer_size];
+	char buf[MAX_BUFFER_SIZE];
         uint size;
         int  flow;
-} queue[queue_size];
+} queue[QUEUE_SIZE];
 
 volatile unsigned int l_queue = 0;
 volatile unsigned int r_queue = 0;
-volatile unsigned int current_queue_size = queue_size;
+volatile unsigned int current_queue_size = QUEUE_SIZE;
+
 pthread_mutex_t       queue_mutex;
 
 int application_register(const char *app_name,
@@ -140,10 +142,10 @@ const char *getDIF(const char *difname)
 
 void *rina_read_flow(void *flowptr)
 {
-        char buf[max_buffer_size];
+        char buf[MAX_BUFFER_SIZE];
         rina_flow_t id = (rina_flow_t) flowptr;
 
-        uint buf_size = rinaFlow_readSDU(id, buf, max_buffer_size);
+        uint buf_size = rinaFlow_readSDU(id, buf, MAX_BUFFER_SIZE);
         while (buf_size > 0) {
                 pthread_mutex_lock(&queue_mutex);
                 if (current_queue_size == 0) {
@@ -153,13 +155,13 @@ void *rina_read_flow(void *flowptr)
                 memcpy(queue[r_queue].buf, buf, buf_size);
                 queue[r_queue].size = buf_size;
                 queue[r_queue].flow = id;
-                r_queue = (r_queue + 1) % queue_size;
+                r_queue = (r_queue + 1) % QUEUE_SIZE;
                 // Set FD to one
                 write(rina_event, &one, sizeof(unsigned long long));
                 current_queue_size++;
                 pthread_mutex_unlock(&queue_mutex);
 
-                buf_size = rinaFlow_readSDU(id, buf, max_buffer_size);
+                buf_size = rinaFlow_readSDU(id, buf, MAX_BUFFER_SIZE);
         }
 
         return NULL;
@@ -249,7 +251,7 @@ int rina_recvfrom(msg_t *msg, netadr_t *from)
                 from->flow = queue[l_queue].flow;
                 msg->cursize = MIN(queue[l_queue].size, msg->maxsize);
                 memcpy(msg->data, queue[l_queue].buf, msg->cursize);
-                l_queue= (l_queue + 1) % queue_size;
+                l_queue= (l_queue + 1) % QUEUE_SIZE;
                 current_queue_size--;
                 pthread_mutex_unlock(&queue_mutex);
 
