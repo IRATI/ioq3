@@ -385,9 +385,8 @@ qboolean NET_CompareBaseAdrMask(netadr_t a, netadr_t b, int netmask)
 	byte cmpmask, *addra, *addrb;
 	int curbyte;
 
-	if (a.type == NA_RINA && b.type  == NA_RINA) {
-                return qtrue;
-	}
+	if (a.type == NA_RINA && b.type  == NA_RINA)
+		return a.flow == b.flow ? qtrue : qfalse;
 	if (a.type != b.type)
 		return qfalse;
 
