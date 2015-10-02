@@ -235,7 +235,6 @@ static void NetadrToSockadr( netadr_t *a, struct sockaddr *s )
 		((struct sockaddr_in6 *)s)->sin6_addr = curgroup.ipv6mr_multiaddr;
 		((struct sockaddr_in6 *)s)->sin6_port = a->port;
 	}
-	/* else if (a->type == NA_RINA) RINA should not call NetadrToSockadr */
 }
 
 

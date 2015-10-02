@@ -2775,18 +2775,15 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 
 	if ( msg->cursize >= 4 && *(int *)msg->data == -1 ) {
 		CL_ConnectionlessPacket( from, msg );
-		printf("CLIENT return 1\n");
 		return;
 	}
 
 	if ( clc.state < CA_CONNECTED ) {
-	        printf("CLIENT return 2\n");
 		return;		// can't be a valid sequenced packet
 	}
 
 	if ( msg->cursize < 4 ) {
 		Com_Printf ("%s: Runt packet\n", NET_AdrToStringwPort( from ));
-		printf("CLIENT return 3\n");
 		return;
 	}
 
@@ -2797,12 +2794,10 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 		Com_DPrintf ("%s:sequenced packet without connection\n"
 			, NET_AdrToStringwPort( from ) );
 		// FIXME: send a client disconnect?
-		printf("CLIENT return 4\n");
 		return;
 	}
 
 	if (!CL_Netchan_Process( &clc.netchan, msg) ) {
-	        printf("CLIENT return 5\n");
 	        return;		// out of order, duplicated, etc
 	}
 
@@ -2824,7 +2819,6 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 	if ( clc.demorecording && !clc.demowaiting ) {
 		CL_WriteDemoMessage( msg, headerBytes );
 	}
-	printf("CLIENT return FINAL\n");
 }
 
 /*
