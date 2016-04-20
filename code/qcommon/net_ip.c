@@ -235,7 +235,6 @@ static void NetadrToSockadr( netadr_t *a, struct sockaddr *s )
 		((struct sockaddr_in6 *)s)->sin6_addr = curgroup.ipv6mr_multiaddr;
 		((struct sockaddr_in6 *)s)->sin6_port = a->port;
 	}
-	/* else if (a->type == NA_RINA) RINA should not call NetadrToSockadr */
 }
 
 
@@ -459,8 +458,7 @@ const char *NET_AdrToString (netadr_t a)
 		memset(&sadr, 0, sizeof(sadr));
 		NetadrToSockadr(&a, (struct sockaddr *) &sadr);
 		Sys_SockaddrToString(s, sizeof(s), (struct sockaddr *) &sadr);
-	} else if (a.type == NA_RINA)
-	    Com_sprintf (s, sizeof(s), "rina %d", a.flow);
+	}
 
 	return s;
 }
@@ -485,7 +483,7 @@ const char	*NET_AdrToStringwPort (netadr_t a)
 qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 {
         if (a.type == NA_RINA && b.type  == NA_RINA)
-                return a.flow == b.flow ? qtrue : qfalse;
+                return a.port_id == b.port_id ? qtrue : qfalse;
 
 	if(!NET_CompareBaseAdr(a, b))
 		return qfalse;
@@ -630,12 +628,10 @@ qboolean NET_GetPacket(netadr_t *net_from, msg_t *net_message, fd_set *fdr)
 	}
 
 	/* RINA */
-	if (rina_event != INVALID_SOCKET && FD_ISSET(rina_event, fdr)) {
-	    ret = rina_recvfrom(net_message, net_from);
-	    if (ret != SOCKET_ERROR) {
+        ret = RINA_Recvfrom(net_message, net_from);
+        if (ret > 0) {
 		return qtrue;
-	    }
-	}
+        }
 
 	return qfalse;
 }
@@ -651,11 +647,11 @@ Sys_SendPacket
 */
 void Sys_SendPacket( int length, const void *data, netadr_t to )
 {
-	int				ret = SOCKET_ERROR;
+	int ret = SOCKET_ERROR;
 	struct sockaddr_storage	addr;
-        /* RINA */
+
 	if (to.type == NA_RINA) {
-	    rina_sendto(length, data, &to);
+	    RINA_Sendto(length, data, &to);
 	    return;
 	}
 
@@ -1613,7 +1609,6 @@ void NET_Config( qboolean enableNetworking ) {
 		if (net_enabled->integer) {
 			NET_OpenIP();
 			NET_SetMulticast6();
-                        // TODO: NET_startRINA();
 		}
 	}
 }
@@ -1641,6 +1636,12 @@ void NET_Init( void ) {
 	NET_Config( qtrue );
 
 	Cmd_AddCommand ("net_restart", NET_Restart_f);
+
+#ifdef DEDICATED
+        RINA_Init(1);
+#else
+        RINA_Init(0);
+#endif
 }
 
 
@@ -1655,6 +1656,12 @@ void NET_Shutdown( void ) {
 	}
 
 	NET_Config( qfalse );
+
+#ifdef DEDICATED
+        RINA_Fini(1);
+#else
+        RINA_Fini(0);
+#endif
 
 #ifdef _WIN32
 	WSACleanup();
@@ -1700,14 +1707,6 @@ void NET_Event(fd_set *fdr)
 	}
 }
 
-/* RINA */
-unsigned long long time_ms(void)
-{
-        struct timespec now;
-        clock_gettime(CLOCK_REALTIME, &now);
-        return now.tv_sec*1000+(now.tv_nsec/1000000);
-}
-
 /*
 ====================
 NET_Sleep
@@ -1717,7 +1716,6 @@ Sleeps msec or until something happens on the network
 */
 void NET_Sleep(int msec)
 {
-#ifndef RINA_USE_POLLING
 	struct timeval timeout;
 	fd_set fdr;
 	int retval;
@@ -1740,12 +1738,6 @@ void NET_Sleep(int msec)
 		if(highestfd == INVALID_SOCKET || ip6_socket > highestfd)
 			highestfd = ip6_socket;
 	}
-	if (rina_event != INVALID_SOCKET) {
-	        FD_SET(rina_event, &fdr);
-
-		if(highestfd == INVALID_SOCKET || rina_event > highestfd)
-			highestfd = rina_event;
-	}
 
 #ifdef _WIN32
 	if(highestfd == INVALID_SOCKET)
@@ -1760,47 +1752,10 @@ void NET_Sleep(int msec)
 	timeout.tv_usec = (msec%1000)*1000;
 
 	retval = select(highestfd + 1, &fdr, NULL, NULL, &timeout);
-#else
-        /* RINA */
-	unsigned long long now;
-        unsigned long long deadline;
-	int                retval;
-	fd_set             fdr;
 
-	if(msec < 0)
-		msec = 0;
-	FD_ZERO(&fdr);
-
-	now = time_ms();
-	deadline = now + msec;
-	while(retval == 0 && now < deadline) {
-                if(ip_socket != INVALID_SOCKET ) {
-                        ioctl(ip_socket, FIONREAD, &retval);
-                        if(retval > 0)
-                                FD_SET(ip_socket, &fdr);
-                        else
-                                retval = 0;
-                }
-                if(retval == 0 && ip6_socket != INVALID_SOCKET) {
-		ioctl(ip6_socket, FIONREAD, &retval);
-		if(retval > 0)
-                        FD_SET(ip6_socket, &fdr);
-		else
-                        retval = 0;
-                }
-                /* RINA */
-                if(retval == 0 && rina_event != INVALID_SOCKET) {
-                        if(rina_read_event()) {
-                                retval = 1;
-                                FD_SET(rina_event, &fdr);
-                        }
-                }
-                now = time_ms();
-        }
-#endif
 	if(retval == SOCKET_ERROR)
 		Com_Printf("Warning: select() syscall failed: %s\n", NET_ErrorString());
-	else if(retval > 0) {
+	else {
                 NET_Event(&fdr);
 	}
 }

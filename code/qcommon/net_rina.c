@@ -34,240 +34,162 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <sys/eventfd.h>
-#include <time.h>
 #include <stdlib.h>
 
 #include <librina-c/librina-c.h>
 
-const char *server_app_name      = "rina.games.server.ioq3";
-const char *server_app_instance  = "1";
-const char *client_app_name      = "rina.games.client.ioq3";
-const char *dif_name             = 0;
+#define SERV_NAME "server.ioq3"
+#define CLI_NAME "client.ioq3"
+#define DIF_NAME "*"
+#define FDS_SIZE 255
 
-const unsigned long long one = 1;
-unsigned long long maybeone  = 1;
+int fds[FDS_SIZE];
 
-#define max_buffer_size (16*1024)
-#define queue_size 64
-struct {
-        char buf[max_buffer_size];
-        uint size;
-        int  flow;
-} queue[queue_size];
-
-volatile unsigned int l_queue = 0;
-volatile unsigned int r_queue = 0;
-volatile unsigned int current_queue_size = queue_size;
-pthread_mutex_t       queue_mutex;
-
-int application_register(const char *app_name,
-                         const char *app_instance,
-                         const char *dif_name)
+static void add_fd(int fd)
 {
-	unsigned int seqnum;
-
-        seqnum = rinaIPCManager_requestApplicationRegistration(app_name,
-                                                               app_instance,
-                                                               dif_name);
-
-        // Wait until app is registered
-        rina_ipcevent *event = rinaIPCEventProducer_eventWait();
-	while (event &&
-               !(rinaIPCEvent_eventType(event) == 8 &&
-                 rinaIPCEvent_sequenceNumber(event) == seqnum))
-		event = rinaIPCEventProducer_eventWait();
-
-	if (rinaBaseApplicationRegistrationResponseEvent_result(event) == 0) {
-		rinaIPCManager_commitPendingRegistration(seqnum, dif_name);
-		return 0; /* registered application */
-	} else {
-		rinaIPCManager_withdrawPendingRegistration(seqnum);
-		return 1; /* failed to register application */
-	}
+        for (int i = 0; i < FDS_SIZE; i++) {
+                if (fds[i] == -1) {
+                        fds[i] = fd;
+                        break;
+                }
+        }
 }
 
-rina_flow_t allocate_flow(const char *local_app_name,
-                          const char *local_app_instance,
-                          const char *remote_app_name,
-                          const char *remote_app_instance,
-                          const char *dif_name)
+void RINA_Resolve(const char * s, netadr_t * a)
 {
-	int seqnum;
-        // See if we need to allocate the flow in a specific DIF
-	if (dif_name != 0) {
-                seqnum = rinaIPCManager_requestFlowAllocationInDIF(local_app_name,
-                                                                   local_app_instance,
-                                                                   remote_app_name,
-                                                                   remote_app_instance,
-                                                                   dif_name,
-                                                                   0);
-	} else {
-		seqnum = rinaIPCManager_requestFlowAllocation(local_app_name,
-                                                              local_app_instance,
-                                                              remote_app_name,
-                                                              remote_app_instance,
-                                                              0);
-	}
+        int fd;
+        int result;
 
-	rina_ipcevent* event = rinaIPCEventProducer_eventWait();
-	while (event &&
-               !(rinaIPCEvent_eventType(event) == 1 &&
-                 rinaIPCEvent_sequenceNumber(event) == seqnum)) {
-		event = rinaIPCEventProducer_eventWait();
-	}
+        a->type = NA_RINA;
 
-	char *event_dif_name = rinaAllocateFlowRequestResultEvent_difName(event);
+        fd = flow_alloc(SERV_NAME, NULL, NULL);
+        if (fd < 0) {
+                printf("Failed to allocate flow\n");
+                return;
+        }
 
-	rina_flow_t id;
-        id = rinaIPCManager_commitPendingFlow(rinaIPCEvent_sequenceNumber(event),
-                                              rinaAllocateFlowRequestResultEvent_portId(event),
-                                              event_dif_name);
-	free(event_dif_name);
+        result = flow_alloc_res(fd);
+        if (result < 0) {
+                printf("Flow allocation refused\n");
+                flow_dealloc(fd);
+                return;
+        }
 
-	if (!id || rinaFlow_getPortId(id) == -1)
-		return 0;
-	return id;
+        flow_cntl(fd, FLOW_F_SETFL, FLOW_O_NONBLOCK);
+
+        a->port_id = fd;
+
+        add_fd(fd);
 }
 
-const char *getDIF(const char *difname)
+void RINA_Sendto(int length, const void * data, netadr_t * to)
 {
-        if (!difname || !*difname)
-                return 0;
-
-        return difname;
+        flow_write(to->port_id, (void *) data, length);
 }
 
-void *rina_read_flow(void *flowptr)
+int RINA_Recvfrom(msg_t * msg, netadr_t * from)
 {
-        char buf[max_buffer_size];
-        rina_flow_t id = (rina_flow_t) flowptr;
+        ssize_t count = 0;
 
-        uint buf_size = rinaFlow_readSDU(id, buf, max_buffer_size);
-        while (buf_size > 0) {
-                pthread_mutex_lock(&queue_mutex);
-                if (current_queue_size == 0) {
-                        pthread_mutex_unlock(&queue_mutex);
+        for (int i = 0; i < FDS_SIZE; i++) {
+                if (fds[i] == -1)
+                        break;
+
+                count = flow_read(fds[i], msg->data, msg->maxsize);
+                if (count < 0) {
                         continue;
                 }
-                memcpy(queue[r_queue].buf, buf, buf_size);
-                queue[r_queue].size = buf_size;
-                queue[r_queue].flow = id;
-                r_queue = (r_queue + 1) % queue_size;
-                // Set FD to one
-                write(rina_event, &one, sizeof(unsigned long long));
-                current_queue_size++;
-                pthread_mutex_unlock(&queue_mutex);
 
-                buf_size = rinaFlow_readSDU(id, buf, max_buffer_size);
-        }
-
-        return NULL;
-}
-
-void *rina_server_listen(void *para)
-{
-        printf("RINA: serverlisten\n");
-	rina_ipcevent *event = rinaIPCEventProducer_eventWait();
-	char *dif_name;
-        rina_flow_t flow = 0;
-        pthread_t flow_thread;
-	while (event) {
-                switch (rinaIPCEvent_eventType(event)) {
-                case 8:
-                        dif_name = rinaRegisterApplicationResponseEvent_DIFName(event);
-                        rinaIPCManager_commitPendingRegistration(rinaIPCEvent_sequenceNumber(event),
-                                                                 dif_name);
-                        free(dif_name);
-                        event = rinaIPCEventProducer_eventWait();
-                        break;
-                case 0:
-                        flow = rinaIPCManager_allocateFlowResponse(event, 0, 1);
-                        pthread_create(&flow_thread,
-                                       NULL,
-                                       rina_read_flow,
-                                       (void*) flow);
-                        pthread_detach(flow_thread);
-                        event = rinaIPCEventProducer_eventWait();
-                        break;
-                default:
-                        event = 0;
-                        break;
+                if (count > msg->maxsize) {
+                        printf("Oversized packet received");
+                        return 0;
                 }
+
+                from->type = NA_RINA;
+                from->port_id = fds[i];
+                msg->cursize = count;
+                msg->readcount = 0;
+
+                return count;
         }
-	return NULL;
+
+        return 0;
 }
 
-void rina_init(char server)
+void * RINA_Server_Listen(void * server_fd)
 {
-        pthread_mutex_init(&queue_mutex, NULL);
+        int serv_fd = (intptr_t) server_fd;
+        int client_fd;
+        char * client_name = NULL;
 
-        if(rina_event == -1)
-                rina_event = eventfd(0, EFD_SEMAPHORE);
+        for (;;) {
+                client_fd = flow_accept(serv_fd,
+                                        &client_name, NULL);
+                if (client_fd < 0) {
+                        printf("Failed to accept flow\n");
+                        continue;
+                }
 
-        rina_initialize("INFO", "");
+                printf("New flow from %s\n", client_name);
+
+                if (flow_alloc_resp(client_fd, 0)) {
+                        printf("Failed to give an allocate response\n");
+                        flow_dealloc(client_fd);
+                        continue;
+                }
+
+                flow_cntl(client_fd, FLOW_F_SETFL, FLOW_O_NONBLOCK);
+
+                add_fd(client_fd);
+        }
+
+}
+
+void RINA_Init(int server)
+{
+        char * dif = DIF_NAME;
+        pthread_t listen_thread;
+        int server_fd;
+
+        for (int i = 0; i < FDS_SIZE; i++) {
+                fds[i] = -1;
+        }
 
         if (server) {
-                if (application_register(server_app_name,
-                                         server_app_instance,
-                                         getDIF(dif_name)) != 0)
+
+                if (ap_init(SERV_NAME)) {
+                        printf("Failed to init.\n");
                         return;
-                pthread_t listen_thread;
+                }
+
+                server_fd = ap_reg(&dif, 1);
+                if (server_fd < 0) {
+                        printf("Failed to register AP.\n");
+                        return;
+                }
+
                 pthread_create(&listen_thread,
                                NULL,
-                               rina_server_listen,
-                               NULL);
+                               RINA_Server_Listen,
+                               (void *) (intptr_t) server_fd);
                 pthread_detach(listen_thread);
+        } else {
+                if (ap_init(CLI_NAME)) {
+                        printf("Failed to init.\n");
+                        return;
+                }
         }
 }
 
-void rina_resolve(const char *s, netadr_t *a)
+void RINA_Fini(int server)
 {
-        srand(time(NULL));
-        int client_api = rand();
-        char client_api_str[10];
-        sprintf(client_api_str, "%d", client_api);
-        a->type = NA_RINA;
-        rina_flow_t flow = allocate_flow(client_app_name,
-                                         client_api_str,
-                                         server_app_name,
-                                         server_app_instance,
-                                         getDIF(dif_name));
-        a->flow = flow;
-        pthread_t flow_thread;
-        pthread_create(&flow_thread, NULL, rina_read_flow, (void*) flow);
-        pthread_detach(flow_thread);
-}
+        char * dif = DIF_NAME;
 
-int rina_recvfrom(msg_t *msg, netadr_t *from)
-{
-        pthread_mutex_lock(&queue_mutex);
-        if (rina_read_event()) {
-                // Set FD appropriately
-                read(rina_event, &maybeone, sizeof(unsigned long long));
-                from->type = NA_RINA;
-                from->flow = queue[l_queue].flow;
-                msg->cursize = MIN(queue[l_queue].size, msg->maxsize);
-                memcpy(msg->data, queue[l_queue].buf, msg->cursize);
-                l_queue= (l_queue + 1) % queue_size;
-                current_queue_size--;
-                pthread_mutex_unlock(&queue_mutex);
-
-                return 0;
+        if (server) {
+                if (ap_unreg(&dif, 1)) {
+                        printf("Failed to unregister application\n");
+                }
         }
-        pthread_mutex_unlock(&queue_mutex);
 
-        return -1;
+        ap_fini();
 }
-
-void rina_sendto(int length, const void *data, netadr_t *to)
-{
-        rinaFlow_writeSDU(to->flow, (void*) data, length);
-}
-
-char rina_read_event(void)
-{
-        return l_queue != r_queue;
-}
-
-int rina_event = -1;//invalid_socket
