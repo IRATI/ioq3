@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef _QCOMMON_H_
 #define _QCOMMON_H_
 
-#include <stdint.h>
 #include "../qcommon/cm_public.h"
 
 //Ignore __attribute__ on non-gcc platforms
@@ -161,10 +160,10 @@ typedef enum {
 typedef struct {
 	netadrtype_t	type;
 	byte	ip[4];
-        int flow;
 	byte	ip6[16];
 	unsigned short	port;
 	unsigned long	scope_id;	// Needed for IPv6 link-local addresses
+        int             fd; // Needed for RINA support
 } netadr_t;
 
 void		NET_Init( void );

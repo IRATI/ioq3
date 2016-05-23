@@ -2906,11 +2906,8 @@ ifneq ($(findstring clean, $(MAKECMDGOALS)),)
 .NOTPARALLEL:
 endif
 
-#RINA support
+# RINA support
 CFLAGS+="-I/usr/local/irati/include"
-CFLAGS+="-lpthread"
-LIBS+="-lstdc++"
 LDFLAGS+="-L/usr/local/irati/lib"
-LIBS+="-lrina"
 LIBS+="-lrina-c"
-
+LIBS+="-lpthread"

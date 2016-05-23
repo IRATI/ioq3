@@ -35,12 +35,12 @@
 #include "../qcommon/q_shared.h"
 #include "../qcommon/qcommon.h"
 
-void rina_init      (char server);
-void rina_resolve   (const char* s, netadr_t* a);
-int  rina_recvfrom  (msg_t* msg,netadr_t* from);
-void rina_sendto    (int length, const void* data, netadr_t* to);
-char rina_read_event(void);
+void RINA_Init(int server);
+void RINA_Fini(int server);
 
-extern int rina_event;
+void RINA_Resolve(const char * s, netadr_t * a);
 
-#endif//NET_RINA_H
+int  RINA_Recvfrom(msg_t * msg, netadr_t * from);
+void RINA_Sendto(int length, const void * data, netadr_t * to);
+
+#endif //NET_RINA_H

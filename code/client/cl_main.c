@@ -2778,8 +2778,8 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 		return;
 	}
 
-	if ( clc.state < CA_CONNECTED ) {
-		return;		// can't be a valid sequenced packet
+        if ( clc.state < CA_CONNECTED ) {
+                return;		// can't be a valid sequenced packet
 	}
 
 	if ( msg->cursize < 4 ) {
@@ -2793,7 +2793,6 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 	if ( !NET_CompareAdr( from, clc.netchan.remoteAddress ) ) {
 		Com_DPrintf ("%s:sequenced packet without connection\n"
 			, NET_AdrToStringwPort( from ) );
-		// FIXME: send a client disconnect?
 		return;
 	}
 
