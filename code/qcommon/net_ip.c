@@ -386,8 +386,9 @@ qboolean NET_CompareBaseAdrMask(netadr_t a, netadr_t b, int netmask)
 	int curbyte;
 
 	if (a.type == NA_RINA && b.type  == NA_RINA)
-		return a.flow == b.flow ? qtrue : qfalse;
-	if (a.type != b.type)
+		return a.fd == b.fd ? qtrue : qfalse;
+
+        if (a.type != b.type)
 		return qfalse;
 
 	if (a.type == NA_LOOPBACK)
@@ -482,7 +483,7 @@ const char	*NET_AdrToStringwPort (netadr_t a)
 qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 {
         if (a.type == NA_RINA && b.type  == NA_RINA)
-                return a.port_id == b.port_id ? qtrue : qfalse;
+                return a.fd == b.fd ? qtrue : qfalse;
 
 	if(!NET_CompareBaseAdr(a, b))
 		return qfalse;

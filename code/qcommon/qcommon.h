@@ -163,7 +163,7 @@ typedef struct {
 	byte	ip6[16];
 	unsigned short	port;
 	unsigned long	scope_id;	// Needed for IPv6 link-local addresses
-        int             port_id;
+        int             fd; // Needed for RINA support
 } netadr_t;
 
 void		NET_Init( void );

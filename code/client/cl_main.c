@@ -2779,7 +2779,6 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 	}
 
         if ( clc.state < CA_CONNECTED ) {
-	        printf("CLIENT return 2\n");
                 return;		// can't be a valid sequenced packet
 	}
 

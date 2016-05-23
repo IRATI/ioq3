@@ -77,14 +77,14 @@ void RINA_Resolve(const char * s, netadr_t * a)
 
         flow_cntl(fd, FLOW_F_SETFL, FLOW_O_NONBLOCK);
 
-        a->port_id = fd;
+        a->fd = fd;
 
         add_fd(fd);
 }
 
 void RINA_Sendto(int length, const void * data, netadr_t * to)
 {
-        flow_write(to->port_id, (void *) data, length);
+        flow_write(to->fd, (void *) data, length);
 }
 
 int RINA_Recvfrom(msg_t * msg, netadr_t * from)
@@ -106,7 +106,7 @@ int RINA_Recvfrom(msg_t * msg, netadr_t * from)
                 }
 
                 from->type = NA_RINA;
-                from->port_id = fds[i];
+                from->fd = fds[i];
                 msg->cursize = count;
                 msg->readcount = 0;
 
