@@ -36,7 +36,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#include <librina-c/librina-c.h>
+#include <ouroboros/dev.h>
 
 #define SERV_NAME "server.ioq3"
 #define CLI_NAME "client.ioq3"
