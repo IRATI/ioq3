@@ -47,7 +47,8 @@ int fds[FDS_SIZE];
 
 static void add_fd(int fd)
 {
-        for (int i = 0; i < FDS_SIZE; i++) {
+        int i;
+        for (i = 0; i < FDS_SIZE; i++) {
                 if (fds[i] == -1) {
                         fds[i] = fd;
                         break;
@@ -151,8 +152,9 @@ void RINA_Init(int server)
         char * dif = DIF_NAME;
         pthread_t listen_thread;
         int server_fd;
+        int i = 0;
 
-        for (int i = 0; i < FDS_SIZE; i++) {
+        for (i = 0; i < FDS_SIZE; i++) {
                 fds[i] = -1;
         }
 
