@@ -90,8 +90,9 @@ void RINA_Sendto(int length, const void * data, netadr_t * to)
 int RINA_Recvfrom(msg_t * msg, netadr_t * from)
 {
         ssize_t count = 0;
+        int i         = 0;
 
-        for (int i = 0; i < FDS_SIZE; i++) {
+        for (i = 0; i < FDS_SIZE; i++) {
                 if (fds[i] == -1)
                         break;
 
