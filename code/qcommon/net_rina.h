@@ -38,7 +38,7 @@
 void RINA_Init(int server);
 void RINA_Fini(int server);
 
-void RINA_Resolve(const char * s, netadr_t * a);
+void RINA_Resolve(char * s, netadr_t * a);
 
 int  RINA_Recvfrom(msg_t * msg, netadr_t * from);
 void RINA_Sendto(int length, const void * data, netadr_t * to);
