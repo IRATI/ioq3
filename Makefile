@@ -2907,7 +2907,7 @@ ifneq ($(findstring clean, $(MAKECMDGOALS)),)
 endif
 
 # RINA support
-CFLAGS+="-I/usr/local/ouroboros/include"
-LDFLAGS+="-L/usr/local/ouroboros/lib"
+#CFLAGS+="-I/usr/local/ouroboros/include"
+#LDFLAGS+="-L/usr/local/ouroboros/lib"
 LIBS+="-louroboros"
 LIBS+="-lpthread"
