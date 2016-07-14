@@ -638,6 +638,7 @@ int NET_StringToAdr( const char *s, netadr_t *a, netadrtype_t family )
 // as NA_LOOPBACK doesn't require ports report port was given.
 		return 1;
 	}
+
         if(family == NA_RINA)
         {
             RINA_Resolve(s, a);
