@@ -63,13 +63,13 @@ void RINA_Resolve(char * s, netadr_t * a)
 
         fd = flow_alloc(s, AE_NAME, NULL);
         if (fd < 0) {
-                printf("Failed to allocate flow\n");
+                printf("Failed to allocate flow.\n");
                 return;
         }
 
         result = flow_alloc_res(fd);
         if (result < 0) {
-                printf("Flow allocation refused\n");
+                printf("Flow allocation refused.\n");
                 flow_dealloc(fd);
                 return;
         }
@@ -96,12 +96,11 @@ int RINA_Recvfrom(msg_t * msg, netadr_t * from)
                         break;
 
                 count = flow_read(fds[i], msg->data, msg->maxsize);
-                if (count < 0) {
+                if (count < 0)
                         continue;
-                }
 
                 if (count > msg->maxsize) {
-                        printf("Oversized packet received");
+                        printf("Oversized packet received.\n");
                         return 0;
                 }
 
@@ -120,6 +119,7 @@ void * RINA_Server_Listen(void * o)
 {
         int client_fd;
         char * client_ae = NULL;
+        int response = 0;
 
         for (;;) {
                 client_fd = flow_accept(&client_ae);
@@ -128,14 +128,12 @@ void * RINA_Server_Listen(void * o)
                         continue;
                 }
 
-                if(strcmp(client_ae, AE_NAME)) {
+                if (strcmp(client_ae, AE_NAME)) {
                         printf("Wrong client AE");
-                        continue;
+                        response = -1;
                 }
 
-                printf("New client.\n");
-
-                if (flow_alloc_resp(client_fd, 0)) {
+                if (flow_alloc_resp(client_fd, response)) {
                         printf("Failed to give an allocate response\n");
                         flow_dealloc(client_fd);
                         continue;
@@ -153,12 +151,10 @@ void RINA_Init(int server)
         pthread_t listen_thread;
         int i = 0;
 
-        for (i = 0; i < FDS_SIZE; i++) {
+        for (i = 0; i < FDS_SIZE; i++)
                 fds[i] = -1;
-        }
 
         if (server) {
-
                 if (ap_init("ioq3ded.x86_64")) {
                         printf("Failed to init.\n");
                         return;
